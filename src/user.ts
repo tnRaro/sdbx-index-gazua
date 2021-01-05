@@ -13,7 +13,11 @@ export function getYield(user: User, currentPrice) {
     return 0;
   }
   const weighted = user.indices
-    .map((index) => (index.amount * index.price) / currentPrice)
+    .map((index) => {
+      const neww = index.amount * currentPrice;
+      const orii = index.amount * index.price;
+      return (index.amount * (neww - orii)) / orii * 100.0;
+    })
     .reduce((x, y) => x + y);
   const total = user.indices
     .map((index) => index.amount)
