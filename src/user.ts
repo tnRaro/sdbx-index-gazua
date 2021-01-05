@@ -1,51 +1,25 @@
-interface Index {
-  price: number;
-  amount: number;
-}
+import { Stock } from "./market";
 
 interface User {
   money: number;
-  indices?: Index[];
+  stocks?: Stock[];
 }
 
-export function getYield(user: User, currentPrice) {
-  if (!user.indices || user.indices.length === 0) {
-    return 0;
-  }
-  const weighted = user.indices
-    .map((index) => {
-      const neww = index.amount * currentPrice;
-      const orii = index.amount * index.price;
-      return (index.amount * (neww - orii)) / orii * 100.0;
-    })
-    .reduce((x, y) => x + y);
-  const total = user.indices
-    .map((index) => index.amount)
-    .reduce((x, y) => x + y);
-  return weighted / total;
-}
-
-export function getAmount(user: User) {
-  if (!user.indices || user.indices.length === 0) {
-    return 0;
-  }
-  return user.indices.map((index) => index.amount).reduce((x, y) => x + y);
-}
 
 export function sell(user: User, amount, currentPrice) {
-  if (!user.indices) {
-    user.indices = [];
+  if (!user.stocks) {
+    user.stocks = [];
   }
-  if (user.indices.length === 0) {
+  if (user.stocks.length === 0) {
     return;
   }
   var rem = amount;
-  while (rem > 0) {
-    const take = Math.min(user.indices[0].amount, rem);
-    if (take === user.indices[0].amount) {
-      user.indices.shift();
+  while (rem > 0 || user.stocks.length === 0) {
+    const take = Math.min(user.stocks[0].amount, rem);
+    if (take === user.stocks[0].amount) {
+      user.stocks.shift();
     } else {
-      user.indices[0].amount -= take;
+      user.stocks[0].amount -= take;
     }
     rem -= take;
   }
@@ -54,8 +28,8 @@ export function sell(user: User, amount, currentPrice) {
 
 export function buy(user: User, amount, currentPrice) {
   user.money -= amount * currentPrice;
-  if (!user.indices) {
-    user.indices = [];
+  if (!user.stocks) {
+    user.stocks = [];
   }
-  user.indices.push({ price: currentPrice, amount: amount });
+  user.stocks.push({ price: currentPrice, amount: amount });
 }

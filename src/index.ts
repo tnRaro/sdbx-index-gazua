@@ -14,7 +14,7 @@ import {
   setUser,
   startDBWorker,
 } from "./db";
-import { buy, getAmount, getYield, sell } from "./user";
+import { buy, sell } from "./user";
 
 const client = new Discord.Client();
 
