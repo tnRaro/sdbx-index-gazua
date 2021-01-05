@@ -1,1 +1,1 @@
-export const DEFAULT_INDEX_AMOUNT = 20.0;
+export const DEFAULT_INDEX_AMOUNT = 1000.0;

@@ -1,4 +1,6 @@
 import TinyQueue from "tinyqueue";
+import * as fs from "fs";
+import * as util from "util";
 
 export interface BuyTradeRequest {
   userID: string;
@@ -26,6 +28,7 @@ export type TradeRequest = SellTradeRequest | BuyTradeRequest;
 
 interface MarketState {
   reqs: TradeRequest[];
+  stockPrice: number;
 }
 
 interface Trade {
@@ -38,20 +41,34 @@ interface Trade {
 }
 
 var state: MarketState = {
-  reqs: []
+  reqs: [],
+  stockPrice: 0
 };
 
-function reduceStock(stocks: Stock[], amount: number) {
+export async function saveMarket() {
+  return util.promisify(fs.writeFile)("market.json", JSON.stringify(state));
+}
+
+export function loadMarket() {
+  if (fs.existsSync("market.json")) {
+    state = JSON.parse(fs.readFileSync("market.json", "utf8"));
+    console.log("market.json loaded");
+  } else {
+    console.log("market.json not loaded. starting with default database");
+  }
+}
+
+export function reduceStock(stocks: Stock[], amount: number) {
   var rem = amount;
   const out = [];
-  while (rem > 0 || stocks.length === 0) {
+  while (rem > 0 && stocks.length !== 0) {
     const take = Math.min(stocks[0].amount, rem);
     if (take === stocks[0].amount) {
-      stocks.shift();
       out.push(Object.assign({}, stocks[0]));
+      stocks.shift();
     } else {
-      stocks[0].amount -= take;
       out.push({ price: stocks[0].price, amount: take });
+      stocks[0].amount -= take;
     }
     rem -= take;
   }
@@ -75,12 +92,58 @@ function calculateYield(stocks: Stock[], price: number) {
   return weighted / total;
 }
 
+export function addRequest(req: TradeRequest) {
+  req.time = Date.now();
+  state.reqs.push(req);
+}
+
+export function sellingPrice() {
+  if (state.reqs
+    .filter(req => req.type === 'sell').length === 0) {
+      return -53;
+  }
+  const weighted = state.reqs
+    .filter(req => req.type === 'sell')
+    .map((req) => req.amount * req.price)
+    .reduce((x, y) => x + y);
+
+  const total = state.reqs
+    .filter(req => req.type === 'sell')
+    .map((req) => req.amount)
+    .reduce((x, y) => x + y);
+
+  return weighted / total;
+}
+
+export function stockPrice() {
+  return state.stockPrice;
+}
+
+export function buyingPrice() {
+  if (state.reqs
+    .filter(req => req.type === 'buy').length === 0) {
+      return -53;
+  }
+
+  const weighted = state.reqs
+    .filter(req => req.type === 'buy')
+    .map((req) => req.amount * req.price)
+    .reduce((x, y) => x + y);
+
+  const total = state.reqs
+    .filter(req => req.type === 'buy')
+    .map((req) => req.amount)
+    .reduce((x, y) => x + y);
+
+  return weighted / total;
+}
+
 export function processTradeRequests() {
   const buyQueue = new TinyQueue([], (a, b) => (a.price - b.price));
   const sellQueue = new TinyQueue([], (a, b) => (b.price - a.price));
   state.reqs.filter(req => req.type === 'sell').forEach(req => sellQueue.push(req));
   state.reqs.filter(req => req.type === 'buy').forEach(req => buyQueue.push(req));
-
+  console.log(state.reqs);
   const dones: Trade[] = [];
   for (const req of state.reqs) {
     if (req.amount <= 0) continue;
@@ -96,18 +159,18 @@ export function processTradeRequests() {
 
         const doneAmount = Math.min(req.amount, selling.amount);
         const donePrice = selling.price;
-        var sellerYield = 0;
+        let sellerYield = 0;
         if (req.amount >= selling.amount) {
+          req.amount -= selling.amount;
           selling.amount = 0;
           sellerYield = calculateYield(selling.stocks, donePrice);
-          req.amount -= selling.amount;
+          selling.stocks = [];
           sellQueue.pop();
         } else {
-          req.amount = 0;
           const rr = reduceStock(selling.stocks, doneAmount);
           sellerYield = calculateYield(rr, donePrice);
           selling.amount -= req.amount;
-          selling.stocks = [];
+          req.amount = 0;
         }
         dones.push({
           buyer: req.userID,
@@ -130,16 +193,16 @@ export function processTradeRequests() {
 
         const doneAmount = Math.min(req.amount, buying.amount);
         const donePrice = buying.price;
-        var sellerYield = 0;
+        let sellerYield = 0;
         if (req.amount >= buying.amount) {
-          buying.amount = 0;
           req.amount -= buying.amount;
+          buying.amount = 0;
           const rr = reduceStock(req.stocks, doneAmount);
           sellerYield = calculateYield(rr, donePrice);
           buyQueue.pop();
         } else {
-          req.amount = 0;
           buying.amount -= req.amount;
+          req.amount = 0;
           sellerYield = calculateYield(req.stocks, donePrice);
           req.stocks = [];
         }
@@ -155,9 +218,39 @@ export function processTradeRequests() {
     }
   }
   state.reqs = state.reqs.filter(req => req.amount !== 0);
+  if (dones.length !== 0) {
+    const weighted = dones
+      .map((req) => req.amount * req.price)
+      .reduce((x, y) => x + y);
+
+    const total = dones
+      .map((req) => req.amount)
+      .reduce((x, y) => x + y);
+
+    state.stockPrice = weighted / total;
+  }
   return dones;
 }
 
-function system() {
+export function processIndex(indexPrice) {
+  const buys = state.reqs.filter(req => req.type === 'buy').length;
+  const sells = state.reqs.filter(req => req.type === 'sell').length;
+  const amount = Math.floor(Math.random() * 100);
+  addRequest({
+    type: 'sell',
+    amount: amount,
+    price: indexPrice,
+    time: Date.now(),
+    userID: 'system',
+    stocks: [{amount: amount, price: indexPrice + 1}]
+  });
 
+  const amount2 = Math.floor(Math.random() * 100);
+  addRequest({
+    type: 'buy',
+    amount: amount2,
+    price: indexPrice - 1,
+    time: Date.now(),
+    userID: 'system'
+  });
 }

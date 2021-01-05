@@ -52,6 +52,9 @@ export function existsUser(id) {
 }
 
 export function getUser(id) {
+  if (id === 'system') {
+    return {money: 0};
+  }
   return db[id];
 }
 
