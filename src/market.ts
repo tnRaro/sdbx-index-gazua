@@ -139,8 +139,8 @@ export function buyingPrice() {
 }
 
 export function processTradeRequests() {
-  const buyQueue = new TinyQueue([], (a, b) => (a.price - b.price));
-  const sellQueue = new TinyQueue([], (a, b) => (b.price - a.price));
+  const buyQueue = new TinyQueue([], (a, b) => (b.price - a.price));
+  const sellQueue = new TinyQueue([], (a, b) => (a.price - b.price));
   state.reqs.filter(req => req.type === 'sell').forEach(req => sellQueue.push(req));
   state.reqs.filter(req => req.type === 'buy').forEach(req => buyQueue.push(req));
   console.log(state.reqs);
@@ -232,25 +232,55 @@ export function processTradeRequests() {
   return dones;
 }
 
+export function cancelExpires(userId): TradeRequest[] {
+  let out = [];
+  state.reqs.filter(req => req.userID === userId).forEach(req => {
+    if (req.userID !== "system") {
+      out.push(Object.assign({}, req));
+      req.amount = 0;
+    }
+  });
+
+  state.reqs = state.reqs.filter(req => req.amount !== 0);
+  return out;
+}
+
+function randn_bm(min, max, skew) {
+  let u = 0, v = 0;
+  while(u === 0) u = Math.random(); //Converting [0,1) to (0,1)
+  while(v === 0) v = Math.random();
+  let num = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+
+  num = num / 10.0 + 0.5; // Translate to 0 -> 1
+  if (num > 1 || num < 0) num = randn_bm(min, max, skew); // resample between 0 and 1 if out of range
+  num = Math.pow(num, skew); // Skew
+  num *= max - min; // Stretch to fill range
+  num += min; // offset to min
+  return num;
+}
+
 export function processIndex(indexPrice) {
   const buys = state.reqs.filter(req => req.type === 'buy').length;
   const sells = state.reqs.filter(req => req.type === 'sell').length;
-  const amount = Math.floor(Math.random() * 100);
-  addRequest({
-    type: 'sell',
-    amount: amount,
-    price: indexPrice,
-    time: Date.now(),
-    userID: 'system',
-    stocks: [{amount: amount, price: indexPrice + 1}]
-  });
+  if (buys < sells) {
+    const amount2 = Math.floor(Math.random() * 200);
+    addRequest({
+      type: 'buy',
+      amount: amount2,
+      price: randn_bm(indexPrice-indexPrice*0.05, indexPrice+indexPrice*0.05, 1.0),
+      time: Date.now(),
+      userID: 'system'
+    });
 
-  const amount2 = Math.floor(Math.random() * 100);
-  addRequest({
-    type: 'buy',
-    amount: amount2,
-    price: indexPrice - 1,
-    time: Date.now(),
-    userID: 'system'
-  });
+  } else {
+    const amount = Math.floor(Math.random() * 200);
+    addRequest({
+      type: 'sell',
+      amount: amount,
+      price: randn_bm(indexPrice-indexPrice*0.05, indexPrice+indexPrice*0.05, 1.0),
+      time: Date.now(),
+      userID: 'system',
+      stocks: [{amount: amount, price: indexPrice + 1}]
+    });
+  }
 }

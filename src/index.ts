@@ -14,7 +14,7 @@ import {
   setUser,
   startDBWorker,
 } from "./db";
-import { addRequest, buyingPrice, loadMarket, processIndex, processTradeRequests, reduceStock, saveMarket, sellingPrice, stockPrice } from "./market";
+import { addRequest, buyingPrice, cancelExpires, loadMarket, processIndex, processTradeRequests, reduceStock, saveMarket, sellingPrice, stockPrice } from "./market";
 import { addStock, getAmount } from "./user";
 
 
@@ -50,7 +50,7 @@ function startSystemWorker() {
   }, 60* 1000);
   setInterval(() => {
     processIndex(getCurrentPrice());
-  }, 30 * 1000 * 60);
+  }, 5*1000);
 }
 
 function updateMarket() {
@@ -61,13 +61,22 @@ function updateMarket() {
   dones.forEach(req => {
     const buyer = getUser(req.buyer);
     const seller = getUser(req.seller);
-    const buyerName = useridToUsername[req.buyer];
-    const sellerName = useridToUsername[req.seller];
+
+    const optionalCheck = x => {
+      if (x) {
+        return x.tag;
+      }
+      return 'unknown';
+    }
+    const buyerName = req.buyer === "system" ? "system" :  optionalCheck(client.users.cache.get(req.buyer));
+    const sellerName = req.seller === "system" ? "system" :  optionalCheck(client.users.cache.get(req.seller));
     buyer.money += req.buyerGain;
     seller.money += req.amount * req.price;
     total += req.amount;
     weighted += req.amount * req.price;
     addStock(buyer, req.amount, req.price);
+
+
     msg += `${sellerName}가 ${buyerName}에게 ${req.amount}주를 ${req.price}원에 팔았습니다. (수익률 ${req.sellerYield})\n`;
   });
   if (msg !== '') {
@@ -98,6 +107,21 @@ client.on("message", (msg) => {
   }
   cc[0] = cc[0].substr(1);
   switch (cc[0]) {
+    case "cancel": {
+      const reqs = cancelExpires(userId);
+      reqs.forEach(req => {
+        if (req.type === "buy") {
+          const user = getUser(req.userID);
+          user.money += req.amount * req.price;
+        } else {
+          const user = getUser(req.userID);
+          req.stocks.forEach(s => {
+            addStock(user, s.amount, s.price);
+          });
+        }
+      });
+      msg.reply("만료 성공");
+    }
     case "buy": {
       if (cc.length !== 3) {
         return;
@@ -114,7 +138,7 @@ client.on("message", (msg) => {
       if (price == null) {
         return;
       }
-      if (price === 0) {
+      if (price <= 0) {
         return;
       }
 
@@ -166,7 +190,7 @@ client.on("message", (msg) => {
       if (price == null) {
         return;
       }
-      if (price === 0) {
+      if (price <= 0) {
         return;
       }
 
