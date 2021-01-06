@@ -5,6 +5,7 @@ import {
   startBankWorker,
   updateCurrentPrice,
 } from "./bank";
+import fetch from "node-fetch";
 import { DEFAULT_INDEX_AMOUNT } from "./consts";
 import {
   existsUser,
@@ -14,7 +15,7 @@ import {
   setUser,
   startDBWorker,
 } from "./db";
-import { addRequest, buyingPrice, cancelExpires, loadMarket, processIndex, processTradeRequests, reduceStock, saveMarket, sellingPrice, stockPrice } from "./market";
+import { addRequest, buyingPrice, cancelExpires, cancelSystemExpires, getUserRequests, loadMarket, processIndex, processTradeRequests, reduceStock, saveMarket, sellingPrice, stockPrice } from "./market";
 import { addStock, getAmount } from "./user";
 
 
@@ -27,7 +28,7 @@ client.on("ready", () => {
 
 function parseNum(str) {
   try {
-    const out = parseFloat(str);
+    const out = parseInt(str);
     if (isNaN(out)) {
       return null;
     }
@@ -41,16 +42,42 @@ function sendSystemMsg(msg) {
   (client.channels.cache.get(process.env.BOT_CHAN) as any).send(msg);
 }
 
+function logStockPrice() {
+  const row = `${Math.floor(Date.now()/1000)},${stockPrice()}`;
+  fetch(process.env.BOT_STATS_URL + '/insert', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/plain',
+      'Authorization': process.env.BOT_STATS_SECRET
+    },
+    body: row
+  }).then(r => { if (!r.ok) {
+    throw Error("incorrect stats secret");
+  }}).catch(e => console.error(e));
+}
+
+let nextMarketUpdateTime;
+
 function startSystemWorker() {
   setInterval(() => {
     saveMarket().catch(e => console.error(e));
   }, 1000);
   setInterval(() => {
     updateMarket();
-  }, 60* 1000);
+    cancelSystemExpires();
+    logStockPrice();
+    nextMarketUpdateTime = Date.now() + 60*1000;
+  }, 60 * 1000);
   setInterval(() => {
     processIndex(getCurrentPrice());
-  }, 5*1000);
+    if (stockPrice()!== 0) {
+      const errie = (stockPrice() - getCurrentPrice())/getCurrentPrice();
+
+      if (errie > -0.8 && errie < 1.53) {
+        processIndex(stockPrice());
+      }
+    }
+  }, 20*1000);
 }
 
 function updateMarket() {
@@ -59,6 +86,9 @@ function updateMarket() {
   let weighted = 0;
   let total = 0;
   dones.forEach(req => {
+    if (req.buyer === "system" && req.seller === "system") {
+      return;
+    }
     const buyer = getUser(req.buyer);
     const seller = getUser(req.seller);
 
@@ -95,7 +125,7 @@ client.on("message", (msg) => {
 
   if (!existsUser(userId)) {
     setUser(userId, {
-      money: ii * DEFAULT_INDEX_AMOUNT,
+      money: 1500 * DEFAULT_INDEX_AMOUNT,
     });
   }
 
@@ -120,7 +150,10 @@ client.on("message", (msg) => {
           });
         }
       });
-      msg.reply("만료 성공");
+      if (reqs.length !== 0) {
+        msg.reply("만료 성공");
+      }
+      break;
     }
     case "buy": {
       if (cc.length !== 3) {
@@ -222,16 +255,40 @@ client.on("message", (msg) => {
       break;
     }
     case "info": {
-      msg.reply(
-        `주가: ${stockPrice()}\n현재 인덱스: ${ii}\n당신의 잔고: ${
-          user.money
-        }\n당신의 주식 수: ${getAmount(user)}\n매도시세: ${sellingPrice()}\n매수시세: ${buyingPrice()}\n`
-      );
+      let out = '\n';
+      out += `다음 거래 채결까지 ${Math.floor((nextMarketUpdateTime - Date.now())/1000)}초 남았습니다\n`;
+      out += `주가: ${stockPrice()}\n`;
+      out += `현재 인덱스: ${ii}\n`;
+      out += `당신의 잔고: ${user.money}\n`;
+      out += `당신의 주식 수: ${getAmount(user)}\n`;
+      out += `매도시세: ${sellingPrice()}\n`;
+      out += `매수시세: ${buyingPrice()}\n`;
+      msg.reply(out);
+      break;
+    }
+    case "reqs": {
+      const reqs = getUserRequests(userId);
+      const buys = reqs.filter(req => req.type === "buy");
+      const sells = reqs.filter(req => req.type === "sell");
+      let out = '\n';
+      out += "매수 요청\n================\n"
+      buys.forEach(req => {
+        out += `주식수: ${req.amount} 호가: ${req.price}\n`;
+      });
+      out += "매도 요청\n================\n"
+      sells.forEach(req => {
+        out += `주식수: ${req.amount} 호가: ${req.price}\n`;
+      });
+      msg.reply(out);
+      break;
+    }
+    case "guide": {
+      msg.reply("\n$info로 현재 시장의 상황과 자신의 자산을 확인 할 수 있습니다.\n $buy로 주식을 사고 싶다고 매수 요청을 올리고 \n $sell로 주식을 팔고 싶다고 매도 요청을 올립니다.\n 1분마다 사람과 봇들의 매도 매수 요청이 적절하게 맽어지면서 거래가 채결됩니다.\n $reqs로 자신의 매도 매수 요청의 리스트를 볼 수 있고 $cancel 자신의 모든 매도 매수 요청을 취소할 수 있습니다.");
       break;
     }
     case "help": {
       msg.reply(
-        `$info\n$sell (가격) (주식 수)\n$buy (가격) (주식 수)\n$sell full\n$buy full`
+        `\n$guide\n$info\n$sell (가격) (주식 수)\n$buy (가격) (주식 수)\n$sell (가격) full\n$buy (가격) full\n$reqs\n$cancel\n`
       );
       break;
     }
