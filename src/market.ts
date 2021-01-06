@@ -282,25 +282,29 @@ function sumAmounts(reqs) {
 export function processIndex(indexPrice) {
   const buys = sumAmounts(state.reqs.filter(req => req.type === 'buy'));
   const sells = sumAmounts(state.reqs.filter(req => req.type === 'sell'));
-  if (buys < sells) {
-    const amount2 = Math.floor(Math.random() * 100);
-    addRequest({
-      type: 'buy',
-      amount: amount2,
-      price: Math.floor(randn_bm(indexPrice-indexPrice*0.05, indexPrice+indexPrice*0.05, 1.0)),
-      time: Date.now(),
-      userID: 'system'
-    });
 
-  } else {
-    const amount = Math.floor(Math.random() * 100);
-    addRequest({
-      type: 'sell',
-      amount: amount,
-      price: Math.floor(randn_bm(indexPrice-indexPrice*0.05, indexPrice+indexPrice*0.05, 1.0)),
-      time: Date.now(),
-      userID: 'system',
-      stocks: [{amount: amount, price: indexPrice + 1}]
-    });
+  let amount2 = Math.floor(Math.random() * 100);
+  if (buys < sells) {
+    amount2 += 50;
   }
+  addRequest({
+    type: 'buy',
+    amount: amount2,
+    price: Math.floor(randn_bm(indexPrice-indexPrice*0.05, indexPrice+indexPrice*0.05, 1.0)),
+    time: Date.now(),
+    userID: 'system'
+  });
+
+  let amount = Math.floor(Math.random() * 100);
+  if (buys > sells) {
+    amount += 50;
+  }
+  addRequest({
+    type: 'sell',
+    amount: amount,
+    price: Math.floor(randn_bm(indexPrice-indexPrice*0.05, indexPrice+indexPrice*0.05, 1.0)),
+    time: Date.now(),
+    userID: 'system',
+    stocks: [{amount: amount, price: indexPrice + 1}]
+  });
 }

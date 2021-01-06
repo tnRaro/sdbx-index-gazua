@@ -2,9 +2,11 @@ const express = require('express')
 const bodyParser = require('body-parser')
 const fs = require('fs')
 const app = express()
+const cors = require("cors")
 const port = process.env.STATS_PORT
 
 app.use(bodyParser.text());
+app.use(cors());
 
 const MAX_ROWS = 60*24*14;
 

@@ -256,7 +256,7 @@ client.on("message", (msg) => {
     }
     case "info": {
       let out = '\n';
-      out += `다음 거래 채결까지 ${Math.floor((nextMarketUpdateTime - Date.now())/1000)}초 남았습니다\n`;
+      out += `다음 거래 체결까지 ${Math.floor((nextMarketUpdateTime - Date.now())/1000)}초 남았습니다\n`;
       out += `주가: ${stockPrice()}\n`;
       out += `현재 인덱스: ${ii}\n`;
       out += `당신의 잔고: ${user.money}\n`;
