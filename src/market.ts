@@ -266,8 +266,8 @@ export function processIndex(indexPrice) {
     }
     return false;
   }
-  const buys = sumAmounts(state.reqs.filter(req => req.type === 'buy').filter(x => !isOutlier(x)));
-  const sells = sumAmounts(state.reqs.filter(req => req.type === 'sell').filter(x => !isOutlier(x)));
+  const buys = sumAmounts(state.reqs.filter(req => req.type === 'buy').filter(x => !isOutlier(x.price)));
+  const sells = sumAmounts(state.reqs.filter(req => req.type === 'sell').filter(x => !isOutlier(x.price)));
 
   let amount2 = Math.floor(Math.random() * 100);
   let amount = Math.floor(Math.random() * 100);
