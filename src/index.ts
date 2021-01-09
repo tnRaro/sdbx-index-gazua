@@ -69,14 +69,14 @@ function startSystemWorker() {
     nextMarketUpdateTime = Date.now() + 60*1000;
   }, 60 * 1000);
   setInterval(() => {
-    processIndex(getCurrentPrice());
     if (stockPrice()!== 0) {
       const errie = (stockPrice() - getCurrentPrice())/getCurrentPrice();
 
-      if (errie > -0.8 && errie < 1.53) {
+      if (errie > -0.5 && errie < 1.53) {
         processIndex(stockPrice());
       }
     }
+    processIndex(getCurrentPrice());
   }, 20*1000);
 }
 
@@ -86,6 +86,8 @@ function updateMarket() {
   let weighted = 0;
   let total = 0;
   dones.forEach(req => {
+    total += req.amount;
+    weighted += req.amount * req.price;
     if (req.buyer === "system" && req.seller === "system") {
       return;
     }
@@ -102,8 +104,6 @@ function updateMarket() {
     const sellerName = req.seller === "system" ? "system" :  optionalCheck(client.users.cache.get(req.seller));
     buyer.money += req.buyerGain;
     seller.money += req.amount * req.price;
-    total += req.amount;
-    weighted += req.amount * req.price;
     addStock(buyer, req.amount, req.price);
 
 

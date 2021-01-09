@@ -145,78 +145,55 @@ export function processTradeRequests() {
   state.reqs.filter(req => req.type === 'buy').forEach(req => buyQueue.push(req));
   console.log(state.reqs);
   const dones: Trade[] = [];
-  for (const req of state.reqs) {
-    if (req.amount <= 0) continue;
-    if (req.type === 'buy') {
-      while (req.amount > 0) {
-        if (sellQueue.length === 0) break;
-        const selling = sellQueue.peek();
-        if (selling.amount === 0) {
-          sellQueue.pop();
-          continue;
-        }
-        if (req.price < selling.price) break;
+  while (buyQueue.length > 0 && sellQueue.length > 0) {
+    const selling = sellQueue.peek();
+    const buying = buyQueue.peek();
+    if (buying.price < selling.price)  {
+      break;
+    }
+    if (selling.amount === 0) {
+      sellQueue.pop();
+      continue;
+    }
+    if (buying.amount === 0) {
+      buyQueue.pop();
+      continue;
+    }
 
-        const doneAmount = Math.min(req.amount, selling.amount);
-        const donePrice = selling.price;
-        let sellerYield = 0;
-        if (req.amount >= selling.amount) {
-          req.amount -= selling.amount;
-          selling.amount = 0;
-          sellerYield = calculateYield(selling.stocks, donePrice);
-          selling.stocks = [];
-          sellQueue.pop();
-        } else {
-          const rr = reduceStock(selling.stocks, doneAmount);
-          sellerYield = calculateYield(rr, donePrice);
-          selling.amount -= req.amount;
-          req.amount = 0;
-        }
-        dones.push({
-          buyer: req.userID,
-          seller: selling.userID,
-          buyerGain: (req.price - donePrice) * doneAmount,
-          sellerYield: sellerYield,
-          price: donePrice,
-          amount: doneAmount
-        });
+    const doneAmount = Math.min(buying.amount, selling.amount);
+    let donePrice;
+    if (buying.time > selling.time) {
+      donePrice = selling.price;
+    } else {
+      donePrice = buying.price;
+    }
+    let sellerYield = 0;
+    if (buying.amount >= selling.amount) {
+      buying.amount -= selling.amount;
+      selling.amount = 0;
+      sellerYield = calculateYield(selling.stocks, donePrice);
+      selling.stocks = [];
+      sellQueue.pop();
+      if (buying.amount === 0) {
+        buyQueue.pop();
       }
     } else {
-      while (req.amount > 0) {
-        if (buyQueue.length === 0) break;
-        const buying = buyQueue.peek();
-        if (buying.amount === 0) {
-          buyQueue.pop();
-          continue;
-        }
-        if (req.price > buying.price) break;
-
-        const doneAmount = Math.min(req.amount, buying.amount);
-        const donePrice = buying.price;
-        let sellerYield = 0;
-        if (req.amount >= buying.amount) {
-          req.amount -= buying.amount;
-          buying.amount = 0;
-          const rr = reduceStock(req.stocks, doneAmount);
-          sellerYield = calculateYield(rr, donePrice);
-          buyQueue.pop();
-        } else {
-          buying.amount -= req.amount;
-          req.amount = 0;
-          sellerYield = calculateYield(req.stocks, donePrice);
-          req.stocks = [];
-        }
-        dones.push({
-          buyer: buying.userID,
-          seller: req.userID,
-          buyerGain: 0,
-          sellerYield: sellerYield,
-          price: donePrice,
-          amount: doneAmount
-        });
-      }
+      const rr = reduceStock(selling.stocks, doneAmount);
+      sellerYield = calculateYield(rr, donePrice);
+      selling.amount -= buying.amount;
+      buying.amount = 0;
+      buyQueue.pop();
     }
+    dones.push({
+      buyer: buying.userID,
+      seller: selling.userID,
+      buyerGain: (buying.price - donePrice) * doneAmount,
+      sellerYield: sellerYield,
+      price: donePrice,
+      amount: doneAmount
+    });
   }
+
   state.reqs = state.reqs.filter(req => req.amount !== 0);
   if (dones.length !== 0) {
     const weighted = dones
@@ -280,13 +257,26 @@ function sumAmounts(reqs) {
 }
 
 export function processIndex(indexPrice) {
-  const buys = sumAmounts(state.reqs.filter(req => req.type === 'buy'));
-  const sells = sumAmounts(state.reqs.filter(req => req.type === 'sell'));
+  const isOutlier = (price) => {
+    if (price > 2.0 * indexPrice) {
+      return true;
+    }
+    if (price < 0.5 * indexPrice) {
+      return true;
+    }
+    return false;
+  }
+  const buys = sumAmounts(state.reqs.filter(req => req.type === 'buy').filter(x => !isOutlier(x)));
+  const sells = sumAmounts(state.reqs.filter(req => req.type === 'sell').filter(x => !isOutlier(x)));
 
   let amount2 = Math.floor(Math.random() * 100);
+  let amount = Math.floor(Math.random() * 100);
   if (buys < sells) {
     amount2 += 50;
+  } else if (buys > sells) {
+    amount += 50;
   }
+
   addRequest({
     type: 'buy',
     amount: amount2,
@@ -295,10 +285,6 @@ export function processIndex(indexPrice) {
     userID: 'system'
   });
 
-  let amount = Math.floor(Math.random() * 100);
-  if (buys > sells) {
-    amount += 50;
-  }
   addRequest({
     type: 'sell',
     amount: amount,
