@@ -111,6 +111,9 @@ function updateMarket() {
   });
   if (msg !== '') {
     msg = `주가: ${weighted/total}\n` + msg;
+    if (msg.length > 1500) {
+      msg = msg.substring(0, 1500);
+    }
     sendSystemMsg(msg);
   }
 }
