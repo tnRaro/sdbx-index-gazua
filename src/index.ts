@@ -66,8 +66,8 @@ function startSystemWorker() {
     updateMarket();
     cancelSystemExpires();
     logStockPrice();
-    nextMarketUpdateTime = Date.now() + 60*1000;
-  }, 60 * 1000);
+    nextMarketUpdateTime = Date.now() + 15*1000;
+  }, 15 * 1000);
   setInterval(() => {
     if (stockPrice()!== 0) {
       const errie = (stockPrice() - getCurrentPrice())/getCurrentPrice();
@@ -77,7 +77,7 @@ function startSystemWorker() {
       }
     }
     processIndex(getCurrentPrice());
-  }, 20*1000);
+  }, 10*1000);
 }
 
 function updateMarket() {
