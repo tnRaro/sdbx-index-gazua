@@ -148,7 +148,7 @@ async function updateMarket() {
     if (x !== "system") {
       updateUser(users[userMap[x]])
         .catch((e) => console.error(e))
-        .then(() => {});
+        .then(() => { });
     }
   });
   insertStockPrice(Date.now(), stockPrice(), getCurrentPrice());
@@ -335,24 +335,40 @@ client.on("message", async (msg) => {
       let out = "\n";
       out += "매수 요청\n================\n";
       buys.forEach((req) => {
-        out += `주식수: ${req.amount} 호가: ${req.price}\n`;
+        out += `주식 수: ${req.amount} 호가: ${req.price}\n`;
       });
       out += "매도 요청\n================\n";
       sells.forEach((req) => {
-        out += `주식수: ${req.amount} 호가: ${req.price}\n`;
+        out += `주식 수: ${req.amount} 호가: ${req.price}\n`;
       });
       msg.reply(out);
       break;
     }
     case "guide": {
       msg.reply(
-        "\n$info로 현재 시장의 상황과 자신의 자산을 확인 할 수 있습니다.\n $hoga로 호가표를 볼수 있고 \n $buy로 주식을 사고 싶다고 매수 요청을 올리고 \n $sell로 주식을 팔고 싶다고 매도 요청을 올립니다.\n 1분마다 사람과 봇들의 매도 매수 요청이 적절하게 맽어지면서 거래가 채결됩니다.\n $reqs로 자신의 매도 매수 요청의 리스트를 볼 수 있고 $cancel 자신의 모든 매도 매수 요청을 취소할 수 있습니다."
+        `$info 현재 시장의 상황과 자신의 자산을 확인 할 수 있습니다.
+$hoga 호가 표를 확인합니다.
+$buy 주식 매수 요청을 올립니다.
+$sell 주식을 매도 요청을 올립니다.
+1분마다 사람과 봇의 매도와 매수 요청이 적절하게 맺어지면서 거래가 체결됩니다.
+$reqs 자신의 매도, 매수 요청의 리스트를 확인합니다.
+$cancel 자신의 모든 매도, 매수 요청을 취소합니다.`
       );
       break;
     }
     case "help": {
       msg.reply(
-        `\n$guide\n$info\n$hoga\n$sell (가격) (주식 수)\n$buy (가격) (주식 수)\n$sell (가격) full\n$buy (가격) full\n$reqs\n$cancel\n`
+        `
+$guide
+$info
+$hoga
+$sell (가격) (주식 수)
+$buy (가격) (주식 수)
+$sell (가격) full
+$buy (가격) full
+$reqs
+$cancel
+`
       );
       break;
     }
