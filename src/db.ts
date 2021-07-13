@@ -1,63 +1,110 @@
 import * as fs from "fs";
-import * as util from "util";
-import { v4 as uuidv4 } from "uuid";
-var db = {};
+import { User } from "./models";
 
-const UPDATE_INTERVAL = 1000;
+const sqlite3 = require("sqlite3").verbose();
+let db;
 
-async function saveDB() {
-  return util.promisify(fs.writeFile)("data.json", JSON.stringify(db));
-}
-
-export function loadDB() {
-  if (fs.existsSync("data.json")) {
-    db = JSON.parse(fs.readFileSync("data.json", "utf8"));
-    console.log("data.json loaded");
-  } else {
-    console.log("data.json not loaded. starting with default database");
+export function initDb() {
+  const shouldCreate = !fs.existsSync("db.db");
+  db = new sqlite3.Database("db.db");
+  if (shouldCreate) {
+    db.serialize(function () {
+      db.run(`CREATE TABLE users (
+          userId TEXT PRIMARY KEY,
+          blob TEXT NOT NULL
+        );`);
+      db.run(`CREATE TABLE stockPrices (
+        time INTEGER PRIMARY KEY,
+        stockPrice REAL NOT NULL,
+        tibyteIndex INTEGER NOT NULL
+      );`);
+    });
   }
 }
 
-export function startDBWorker() {
-  setInterval(() => {
-    saveDB().catch((e) => {
-      console.error(e);
+export async function loadUsers() {
+  return new Promise<User[]>((resolve, reject) => {
+    db.all(`SELECT * from users`, [], (err, rows) => {
+      const out = [];
+      if (err) {
+        reject(err);
+      }
+      rows.forEach((row) => {
+        const user = JSON.parse(row.blob);
+        user.userId = row.userId;
+        out.push(user);
+      });
+      resolve(out);
     });
-  }, UPDATE_INTERVAL);
-}
-
-export function logTransaction(type, id, amount, currentPrice) {
-  (async () => {
-    if (!fs.existsSync("logs")) {
-      fs.mkdirSync("logs");
-    }
-    const data = {
-      time: Date.now(),
-      currentPrice: currentPrice,
-      userId: id,
-      type: type,
-      amount: amount,
-    };
-    return util.promisify(fs.writeFile)(
-      `logs/${Date.now()}-${uuidv4()}.json`,
-      JSON.stringify(data)
-    );
-  })().catch((e) => {
-    console.error(e);
   });
 }
 
-export function existsUser(id) {
-  return id in db;
+export async function insertUser(user: User) {
+  return new Promise<void>((resolve, reject) => {
+    db.run(
+      `INSERT into users(userId, blob) VALUES (?, ?)`,
+      [user.userId, JSON.stringify(user)],
+      (err) => {
+        if (err) {
+          reject(err);
+        }
+        resolve();
+      }
+    );
+  });
 }
 
-export function getUser(id) {
-  if (id === 'system') {
-    return {money: 0};
-  }
-  return db[id];
+export async function updateUser(user: User) {
+  return new Promise<void>((resolve, reject) => {
+    db.run(
+      `UPDATE users SET blob = ? WHERE userID = ?`,
+      [JSON.stringify(user), user.userId],
+      (err) => {
+        if (err) {
+          reject(err);
+        }
+        resolve();
+      }
+    );
+  });
 }
 
-export function setUser(id, user) {
-  db[id] = user;
+export async function loadStockPrices() {
+  return new Promise<
+    { time: number; stockPrice: number; tibyteIndex: number }[]
+  >((resolve, reject) => {
+    db.all(`SELECT * from stockPrices`, [], (err, rows) => {
+      const out = [];
+      if (err) {
+        reject(err);
+      }
+      rows.forEach((row) => {
+        out.push({
+          time: row.time,
+          stockPrice: row.stockPrice,
+          tibyteIndex: row.tibyteIndex,
+        });
+      });
+      resolve(out);
+    });
+  });
+}
+
+export async function insertStockPrice(
+  time: number,
+  stockPrice: number,
+  index: number
+) {
+  return new Promise<void>((resolve, reject) => {
+    db.run(
+      `INSERT into stockPrices(time, stockPrice, tibyteIndex) VALUES (?, ?, ?)`,
+      [time, stockPrice, index],
+      (err) => {
+        if (err) {
+          reject(err);
+        }
+        resolve();
+      }
+    );
+  });
 }
