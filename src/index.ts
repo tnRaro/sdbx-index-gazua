@@ -256,20 +256,20 @@ client.on("message", async (msg) => {
     }
     case "hoga": {
       const hoga = getHoga({ users: users }, 5);
-      let msg2 = "";
+      let out = "\n";
       if (hoga) {
         hoga.buys.forEach((x) => {
           if (x.count != 0) {
-            msg2 += `${x.start}-${x.end} (${x.count} 개)\n`;
+            out += `${x.start}-${x.end} (${x.count} 개)\n`;
           }
         });
-        msg2 += "-----------------------------\n";
+        out += "-----------------------------\n";
         hoga.sells.forEach((x) => {
           if (x.count != 0) {
-            msg2 += `${x.start}-${x.end} (${x.count} 개)\n`;
+            out += `${x.start}-${x.end} (${x.count} 개)\n`;
           }
         });
-        msg.reply(msg2);
+        msg.reply(out);
       }
       break;
     }
